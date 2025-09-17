@@ -1,0 +1,12 @@
+# Example config (edit to match your project)
+paths:
+  raw_data: data/raw
+  processed_data: data/processed
+  models: models
+model:
+  name: legal-bert
+  pretrained_ckpt: nlpaueb/legal-bert-base-uncased
+train:
+  batch_size: 8
+  lr: 3e-5
+  epochs: 3

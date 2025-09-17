@@ -1,0 +1,11 @@
+datasets
+google
+ipykernel
+jupyter
+matplotlib
+numpy
+pandas
+plotly
+scikit-learn
+seaborn
+transformers
