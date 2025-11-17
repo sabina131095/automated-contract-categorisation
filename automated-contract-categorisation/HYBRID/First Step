@@ -1,0 +1,95 @@
+import os
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+
+# ---- Step 1: Prepare your keywords ----
+category_keywords = {
+    "IP": ["INTELLECTUAL PROPERTY AGREEMENT", "INTELLECTUAL PROPERTY RIGHTS AGREEMENT"],
+    "COLLABORATION": ["COOPERATION AGREEMENT", "COLLABORATION AGREEMENT","Cooperation Agreement", "Collaboration Agreement"],
+    "AFFILIATE AGREEMENTS": ["AFFILIATE AGREEMENT", "Affiliate Program", "AFFILIATION AGREEMENT", "AFFILIATE OFFICE AGREEMENT"],#"AFFILIATE"
+    "AGENCY AGREEMENTS": ["AGENCY AGREEMENT", "Agency Agreement"],
+    "CO-BRANDING": ["CO-BRANDING AGREEMENT","CO-BRANDING Agreement", "CO-BRANDING CONTENT", "CO-BRANDING"],
+    "CONSULTING AGREEMENTS": ["CONSULTING AGREEMENT"],
+    "DEVELOPMENT": ["DEVELOPMENT AGREEMENT", "Development Agreement", "DEVELOPMENT AND OPTION AGREEMENT", "DEVELOPMENT AND COMMERCIALIZATION AGREEMENT"], #"DEVELOPMENT",
+    "DISTRIBUTOR": ["DISTRIBUTOR AGREEMENT", "Distributor Agreement", "Distributorship agreement", "DISTRIBUTION AGREEMENT", "DISTRIBUTORSHIP AGREEMENT"],
+    "ENDORSEMENT": ["ENDORSEMENT AGREEMENT", "Endorsement Agreement", "ENDORSEMENT" ],
+    "FRANCHISE": ["FRANCHISE AGREEMENT", "Franchisor", "Franchise Agreement"],
+    "HOSTING": ["HOSTING AGREEMENT", "Hosting Agreement", "HOSTING", "ESCROW"],
+    "JOINT VENTURE": ["JOINT VENTURE AGREEMENT", "JOINT FILING AGREEMENT", "JOINT FILING", "JOINT VENTURE"],
+    "LICENSE AGREEMENTS": ["LICENSE AGREEMENT", "Content and License Agreement", "CONTENT LICENSE", "Content License Agreement", "licensees"], #"LICENSING",
+    "MAINTENANCE": ["Maintenance Agreement", "MAINTENANCE AGREEMENT", "MAINTENANCE AND SUPPORT AGREEMENT"], #"Maintenance"]
+    "MANUFACTURING": ["MANUFACTURING AGREEMENT", "MANUFACTURING", "Manufacturing Agreement"],
+    "MARKETING": ["MARKETING AGREEMENT", "Marketing Agreement", "STRATEGIC LICENSING, DISTRIBUTION AND MARKETING AGREEMENT"],#"MARKETING",
+    "NON-COMPETE NON-SOLICIT": ["NON-COMPETITION AND NON-SOLICITATION AGREEMENT", "NON-COMPETITION AGREEMENT", "NON COMPETITION AGREEMENT"],
+    "OUTSOURCING": ["Outsourcing Agreement", "OUTSOURCING AGREEMENT", "Outsourcing Contract", "MANUFACTURING OUTSOURCING AGREEMENT"],
+    "PROMOTION": ["PROMOTION AGREEMENT","Promotion Agreement"],
+    "RESELLER": ["RESELLER AGREEMENT", "Reseller Agreement"],
+    "SERVICE": ["SERVICES AGREEMENT", "SERVICING AGREEMENT", "SERVICE AGREEMENT", "Service Agreement", "Services Agreement"],
+    "SPONSORSHIP": ["SPONSORSHIP AGREEMENT", "Sponsorship Agreement", "SPONSORSHIP AND DEVELOPMENT AGREEMENT"], #, "SPONSORSHIP"
+    "STRATEGIC ALLIANCE": ["STRATEGIC ALLIANCE AGREEMENT", "Strategic Alliance Agreement"],
+    "SUPPLY": ["SUPPLY AGREEMENT", "Supply Agreement", "SUPPLY CONTRACT"],
+    "TRANSPORTATION": ["Transportation Agreement", "TRANSPORTATION SERVICES AGREEMENT", "TRANSPORTATION", "TRANSPORTATION SERVICE AGREEMENT"]
+}
+
+# Sort keywords in each category by length (descending)
+for k in category_keywords:
+    category_keywords[k] = sorted(category_keywords[k], key=len, reverse=True)
+
+# ---- Step 2: Prepare your data ----
+contracts_folder = "/content/Contracts"
+data = []
+for fname in os.listdir(contracts_folder):
+    if fname.endswith('.txt'):
+        with open(os.path.join(contracts_folder, fname), encoding='utf-8', errors='ignore') as f:
+            text = f.read()
+        data.append({'file_name': fname, 'text': text})
+df = pd.DataFrame(data)
+
+# ---- Step 3: Assign categories by keyword ----
+def categorize_by_keyword(text, category_keywords, header_chars=2000):
+    header = text[:header_chars]
+    found = []
+    for cat, keywords in category_keywords.items():
+        for kw in keywords:
+            idx = header.find(kw)
+            if idx != -1:
+                found.append((idx, len(kw), cat))
+    # Sort first by position (idx), then by keyword length (desc)
+    if found:
+        found = sorted(found, key=lambda x: (x[0], -x[1]))
+        return found[0][2]  # category of first keyword match
+    return None
+
+df['category_keyword'] = df['text'].apply(lambda x: categorize_by_keyword(x, category_keywords))
+
+# ---- Step 4: Prepare ML Training Data ----
+# Use only samples where a keyword confidently matched for training
+train_df = df[df['category_keyword'].notnull()].copy()
+category2id = {cat: idx for idx, cat in enumerate(sorted(train_df['category_keyword'].unique()))}
+id2category = {idx: cat for cat, idx in category2id.items()}
+train_df['label'] = train_df['category_keyword'].map(category2id)
+
+# ---- Step 5: Train TF-IDF + LR Model ----
+vectorizer = TfidfVectorizer(max_features=2000, ngram_range=(1,2))
+X_train = vectorizer.fit_transform(train_df['text'])
+y_train = train_df['label']
+
+clf = LogisticRegression(max_iter=1000, multi_class='multinomial', solver='lbfgs')
+clf.fit(X_train, y_train)
+
+# ---- Step 6: Predict (Hybrid) ----
+def hybrid_predict(text):
+    cat = categorize_by_keyword(text, category_keywords)
+    if cat:
+        return cat
+    # Fallback: ML model prediction
+    X_vec = vectorizer.transform([text])
+    pred_label = clf.predict(X_vec)[0]
+    return id2category[pred_label]
+
+df['predicted_category'] = df['text'].apply(hybrid_predict)
+
+# ---- Step 7: Save Results ----
+df[['file_name', 'text', 'predicted_category']].to_excel('/content/contracts_hybrid_predictions.xlsx', index=False)
+print("Results saved to /content/contracts_hybrid_predictions.xlsx")
