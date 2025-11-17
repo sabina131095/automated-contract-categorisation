@@ -1,0 +1,67 @@
+import pandas as pd
+
+# Load both files
+df_pred = pd.read_excel('/content/contracts_hybrid_predictions.xlsx')
+df_true = pd.read_excel('/content/contracts_hybrid_predictions_true.xlsx')
+
+print(df_pred.columns)
+print(df_true.columns)
+
+# Merge on 'file_name' (keep both text columns for now)
+merged = pd.merge(
+    df_true, df_pred,
+    on='file_name',
+    suffixes=('_true', '_pred'),
+    how='inner'
+)
+
+# If text columns are identical, keep just one
+merged['text'] = merged['text_true']  # or 'text_pred'
+# If you want to check they’re identical:
+# assert all(merged['text_true'] == merged['text_pred'])
+
+# Build output DataFrame with exactly these columns:
+final = merged[['file_name', 'text', 'category', 'predicted_category']]
+
+# Preview result
+print(final.head())
+
+final.to_excel('/content/merged_contracts_for_analysis.xlsx', index=False)
+
+errors = merged[merged['category'] != merged['predicted_category']]
+print(errors[['file_name', 'category', 'predicted_category']])
+
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Adjust column names if yours are different
+y_true = merged['category']
+y_pred = merged['predicted_category']
+
+print("Accuracy: {:.2f}%".format(accuracy_score(y_true, y_pred) * 100))
+print(classification_report(y_true, y_pred))
+
+# # Confusion matrix with all unique classes
+# labels = sorted(list(set(y_true) | set(y_pred)))
+# cm = confusion_matrix(y_true, y_pred, labels=labels)
+
+# plt.figure(figsize=(12,10))
+# sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+#             xticklabels=labels, yticklabels=labels)
+# plt.xlabel('Predicted')
+# plt.ylabel('True')
+# plt.title('Confusion Matrix')
+# plt.show()
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+accuracy = accuracy_score(y_true, y_pred)*100
+precision = precision_score(y_true, y_pred, average='weighted')*100
+recall = recall_score(y_true, y_pred, average='weighted')*100
+f1 = f1_score(y_true, y_pred, average='weighted')*100
+
+print(f"Accuracy: {accuracy:.2f}%")
+print(f"Precision: {precision:.2f}%")
+print(f"Recall: {recall:.2f}%")
+print(f"F1 Score: {f1:.2f}%")
