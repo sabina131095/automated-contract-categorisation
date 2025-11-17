@@ -1,6 +1,6 @@
-# Automated Contract Categorisation (Starter Repo)
+# Automated Contract Categorisation
 
-This repository packages your dissertation notebook into a reproducible project you can push to GitHub.
+This repository packages dissertation notebook into a reproducible project.
 
 ## What’s inside
 - `notebooks/Automated_Contract_Categorisation.ipynb` — your original notebook.
