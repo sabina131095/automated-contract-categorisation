@@ -1,0 +1,70 @@
+import os
+import pandas as pd
+
+contracts_folder = '/content/Contracts'
+
+category_keywords = {
+    "IP": ["INTELLECTUAL PROPERTY AGREEMENT", "INTELLECTUAL PROPERTY RIGHTS AGREEMENT"],
+    "COLLABORATION": ["COOPERATION AGREEMENT", "COLLABORATION AGREEMENT","Cooperation Agreement", "Collaborative Development and Commercialization Agreement", "Collaboration Agreement"],
+    "AFFILIATE AGREEMENTS": ["AFFILIATE AGREEMENT", "Affiliate Program"],#"AFFILIATE"
+    "AGENCY AGREEMENTS": ["AGENCY AGREEMENT", "Agency Agreement"],
+    "CO-BRANDING": ["CO-BRANDING AGREEMENT","CO-BRANDING Agreement", "CO-BRANDING CONTENT", "CO-BRANDING"],
+    "CONSULTING AGREEMENTS": ["CONSULTING AGREEMENT"],
+    "DEVELOPMENT": ["DEVELOPMENT AGREEMENT", "Development Agreement", "DEVELOPMENT AND OPTION AGREEMENT"], #"DEVELOPMENT",
+    "DISTRIBUTOR": ["DISTRIBUTOR AGREEMENT", "Distributor Agreement", "Distributorship agreement", "DISTRIBUTION AGREEMENT", "DISTRIBUTORSHIP AGREEMENT"],
+    "ENDORSEMENT": ["ENDORSEMENT AGREEMENT", "Endorsement Agreement", "ENDORSEMENT"],
+    "FRANCHISE": ["FRANCHISE AGREEMENT", "Franchisor", "Franchise Agreement"],
+    "HOSTING": ["HOSTING AGREEMENT", "Hosting Agreement", "HOSTING", "ESCROW"],
+    "JOINT VENTURE": ["JOINT VENTURE AGREEMENT", "JOINT FILING AGREEMENT", "JOINT FILING", "JOINT VENTURE"],
+    "LICENSE AGREEMENTS": ["LICENSE AGREEMENT", "Content and License Agreement", "CONTENT LICENSE", "Content License Agreement", "LICENSING", "licensees"],
+    "MAINTENANCE": ["Maintenance Agreement", "MAINTENANCE AGREEMENT"], #"Maintenance"]
+    "MANUFACTURING": ["MANUFACTURING AGREEMENT", "MANUFACTURING", "Manufacturing Agreement"],
+    "MARKETING": ["MARKETING AGREEMENT", "Marketing Agreement"],#"MARKETING",
+    "NON-COMPETE NON-SOLICIT": ["NON-COMPETITION AND NON-SOLICITATION AGREEMENT", "NON-COMPETITION AGREEMENT", "NON COMPETITION AGREEMENT"],
+    "OUTSOURCING": ["Outsourcing Agreement", "OUTSOURCING AGREEMENT", "Outsourcing Contract", "MANUFACTURING OUTSOURCING AGREEMENT"],
+    "PROMOTION": ["PROMOTION AGREEMENT","Promotion Agreement"],
+    "RESELLER": ["RESELLER AGREEMENT", "Reseller Agreement"],
+    "SERVICE": ["SERVICES AGREEMENT", "SERVICING AGREEMENT", "SERVICE AGREEMENT", "Service Agreement", "Services Agreement"],
+    "SPONSORSHIP": ["SPONSORSHIP AGREEMENT", "SPONSORSHIP", "Sponsorship Agreement"],
+    "STRATEGIC ALLIANCE": ["STRATEGIC ALLIANCE AGREEMENT", "Strategic Alliance Agreement"],
+    "SUPPLY": ["SUPPLY AGREEMENT", "Supply Agreement", "SUPPLY CONTRACT"],
+    "TRANSPORTATION": ["Transportation Agreement", "TRANSPORTATION SERVICES AGREEMENT", "TRANSPORTATION", "TRANSPORTATION SERVICE AGREEMENT"]
+}
+
+# Prepare a list of (keyword, category) tuples, sorted by keyword length descending
+keyword_cat_pairs = []
+for category, keywords in category_keywords.items():
+    for kw in keywords:
+        keyword_cat_pairs.append((kw, category))
+keyword_cat_pairs.sort(key=lambda x: len(x[0]), reverse=True)
+
+def categorize_text_exact(text, keyword_cat_pairs, header_chars=1400):
+    header = text[:header_chars].upper()  # Case-insensitive
+    best_category = None
+    best_idx = len(header) + 1
+    for keyword, category in keyword_cat_pairs:
+        idx = header.find(keyword.upper())
+        if idx != -1 and idx < best_idx:
+            best_idx = idx
+            best_category = category
+    return best_category if best_category else "Unknown"
+
+data = []
+for fname in os.listdir(contracts_folder):
+    if fname.endswith('.txt'):
+        file_path = os.path.join(contracts_folder, fname)
+        with open(file_path, encoding='utf-8', errors='ignore') as f:
+            text = f.read()
+        cat = categorize_text_exact(text, keyword_cat_pairs)
+        data.append({'file_name': fname, 'text': text, 'predicted category': cat})
+
+df = pd.DataFrame(data)
+#df = df[df['category'] != 'Unknown']
+
+category2id = {cat: idx for idx, cat in enumerate(sorted(df['predicted category'].unique()))}
+df['label'] = df['predicted category'].map(category2id)
+
+df[['file_name','text', 'label','predicted category']].to_excel('/content/contracts_keywords_labeled_sorted.xlsx', index=False)
+
+print("Label mapping:", category2id)
+print(df.head())
